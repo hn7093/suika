@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import { FRUITS_BASE } from './Info.js'
-
+//import SE from './assets/effect.mp3'
 export default function App() {
   // Refs
   const sceneRef = useRef(null);
@@ -25,10 +25,12 @@ export default function App() {
   let [score, setScore] = useState(0);
   let [topScore, setTopScore] = useState(0);
   let [Deque, setDeque] = useState([]);
+  let [holdIndex, setHold] = useState(-1); // 홀드한 과일 인덱스
+  let canHold = useRef(false); // 홀드 가능 여부
   let Suika = 0;
+  
 
-
-
+  // Start
   useEffect(() => {
     // init score
     setScore(0);
@@ -81,6 +83,8 @@ export default function App() {
           }
 
           World.remove(world, [collision.bodyA, collision.bodyB]);
+          const audio = new Audio('./effect.mp3');
+          audio.play();
           // add score
           let score = (index + 1) * 10;
           setScore((prevScore) => prevScore + score);
@@ -132,6 +136,7 @@ export default function App() {
     window.addEventListener('mousedown', onMouseDown);
     window.addEventListener('touchmove', TouchMove);
     window.addEventListener('touchend', MouseUpOrTouchEnd);
+    window.addEventListener('keydown', handleKeyDown);
 
     // clean up
     return () => {
@@ -145,6 +150,7 @@ export default function App() {
       window.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('touchmove', TouchMove);
       window.removeEventListener('touchend', MouseUpOrTouchEnd);
+      window.removeEventListener('keydown', handleKeyDown);
     };
 
   }, []); // 시작시 실행
@@ -159,7 +165,7 @@ export default function App() {
       sessionStorage.setItem('topScore', score);
     }
   }, [score]);
-  
+
   useEffect(() => {
     console.log("Deque");
     console.log(Deque);
@@ -181,13 +187,19 @@ export default function App() {
     return getFruit(Math.floor(Math.random() * 5));
   }
   // addFruit
-  const addFruit = () => {
+  const addFruit = (index) => {
     setDeque((prevDeque) => {
       let nowDeque = [...prevDeque];
       //const index = Math.floor(Math.random() * 5;
       //const fruit = FRUITS_BASE[index];
       //const fruit = getFront();
-      const fruit = nowDeque[0];
+      let fruit;
+      if (typeof index !== 'undefined') {
+        fruit = getFruit(index);
+      }
+      else {
+        fruit = nowDeque[0];
+      }
       // create
       const body = Bodies.circle(300, 70, fruit.radius, {
         index: fruit.index,
@@ -200,9 +212,9 @@ export default function App() {
 
       currentBody = body;
       currentFruit = fruit;
-      //addBack(getRandomFruit());
       setDeque([...nowDeque.slice(1), getRandomFruit()]);
       World.add(worldRef.current, body);
+      canHold.current = true;
     });
   }
 
@@ -210,6 +222,7 @@ export default function App() {
     if (lockAction) return;
     currentBody.isSleeping = false;
     lockAction = true;
+    canHold.current = false;
     setTimeout(() => {
       addFruit();
       lockAction = false;
@@ -249,8 +262,26 @@ export default function App() {
     });
   };
 
+  // hold
+  const hold = () => {
+    setHold((current) => {
+      console.log("hold" + current);
+      setHold(currentFruit.index);
+      World.remove(worldRef.current, currentBody);
+      if (current < 0) {
+        // 처음 홀드하는 경우
+        addFruit();
+      }
+      else {
+        // 이미 과일을 홀드하고 있으면
+        addFruit(current);
+      }
+      canHold.current = true;
+    });
+  };
+
   //------------------------------------------------------------
-  // mouse event
+  // input event
   const onMouseDown = (event) => {
     isDragging = true;
     let targetX = event.clientX;
@@ -289,6 +320,14 @@ export default function App() {
     dropFruit();
   };
 
+  const handleKeyDown = (event) => {
+    if (event.key === 'Shift') {
+      if (canHold.current) {
+        hold();
+      }
+    }
+  };
+
 
   return (
     <div className='BG'>
@@ -297,10 +336,6 @@ export default function App() {
         <canvas ref={canvasRef}></canvas>
       </div>
       <div>
-        <div className='scoreBoard'>
-          <p>SCORE  <br></br> {score}</p>
-          <p>TOP SCORE  <br></br>{topScore}</p>
-        </div>
         <div className='preview'>
           <p> NEXT</p>
           {Deque && Deque.length > 0 && (
@@ -314,6 +349,18 @@ export default function App() {
             </div>
           )}
         </div>
+        <div className='holdBoard'>
+          <p> HOLD (shift)</p>
+          {holdIndex >= 0 && (
+            <img className="holdImg" src={`/${FRUITS_BASE[holdIndex].name}.png`} />
+          )}
+        </div>
+        <div className='scoreBoard'>
+          <p>SCORE  <br></br> {score}</p>
+          <p>TOP SCORE  <br></br>{topScore}</p>
+        </div>
+
+
       </div>
     </div>
   );

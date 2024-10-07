@@ -22,6 +22,10 @@ body {
   background-color: #f4f4c8;
   min-width: 320px;
   min-height: 100vh;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-use-select: none;
+  user-select: none;
 }
 
 
