@@ -1,0 +1,44 @@
+.App {
+  background-color: #f4f4c8;
+}
+
+.BG {
+  background-color: #f4f4c8;
+  display: flex;
+  align-items: flex-start;
+
+  /* no drag */
+  p {
+    text-align: left;
+    font-size: 1.7rem;
+    color: #333;
+    font-family: "DepartureMono-Regular";
+    user-select: none;
+    margin: 10px;
+  }
+
+  img {
+    /* no drag */
+    user-drag: none;
+    -webkit-user-drag: none;
+    pointer-events: none;
+  }
+}
+
+.scoreBoard {
+  display: flex;
+  flex-direction: column;
+}
+
+.nextContainer {
+  display: flex;
+  flex-direction: row;
+  width: auto;
+  height: 70px;
+  margin: 10px 20px;
+}
+
+.nextImg {
+  margin-left: 10px;
+  
+}
