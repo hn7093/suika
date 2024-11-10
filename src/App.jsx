@@ -28,7 +28,7 @@ export default function App() {
   let [holdIndex, setHold] = useState(-1); // 홀드한 과일 인덱스
   let canHold = useRef(false); // 홀드 가능 여부
   let Suika = 0;
-  
+
 
   // Start
   useEffect(() => {
@@ -167,11 +167,6 @@ export default function App() {
   }, [score]);
 
   useEffect(() => {
-    console.log("Deque");
-    console.log(Deque);
-  }, [Deque]);
-
-  useEffect(() => {
     if (isDragging) {
       console.log("isDragging");
     }
@@ -184,7 +179,7 @@ export default function App() {
     return FRUITS_BASE[index];
   }
   const getRandomFruit = () => {
-    return getFruit(Math.floor(Math.random() * 5));
+    return getFruit(Math.floor(Math.random() * 7));
   }
   // addFruit
   const addFruit = (index) => {
@@ -209,12 +204,16 @@ export default function App() {
         },
         restitution: 0.2,
       });
-
+      // 과일 생성
       currentBody = body;
       currentFruit = fruit;
-      setDeque([...nowDeque.slice(1), getRandomFruit()]);
+      if (typeof index !== 'undefined') {
+        setDeque([...nowDeque]);
+      }
+      else {
+        setDeque([...nowDeque.slice(1), getRandomFruit()]);
+      }
       World.add(worldRef.current, body);
-      canHold.current = true;
     });
   }
 
@@ -222,10 +221,10 @@ export default function App() {
     if (lockAction) return;
     currentBody.isSleeping = false;
     lockAction = true;
-    canHold.current = false;
     setTimeout(() => {
       addFruit();
       lockAction = false;
+      canHold.current = true;
     }, 1000);
   };
 
@@ -276,7 +275,7 @@ export default function App() {
         // 이미 과일을 홀드하고 있으면
         addFruit(current);
       }
-      canHold.current = true;
+      canHold.current = false;
     });
   };
 
@@ -290,7 +289,6 @@ export default function App() {
   const updateFruitPosition = (x) => {
     if (currentBody && !lockAction) {
       // 현재 X 좌표를 업데이트
-      console.log("updateFruitPosition :" + x);
       const newX = Math.max(10 + currentFruit.radius, Math.min(x, 420 - currentFruit.radius));
       Body.setPosition(currentBody, { x: newX, y: currentBody.position.y });
     }
@@ -319,7 +317,7 @@ export default function App() {
     isDragging = false;
     dropFruit();
   };
-
+  // shift로 홀드
   const handleKeyDown = (event) => {
     if (event.key === 'Shift') {
       if (canHold.current) {
