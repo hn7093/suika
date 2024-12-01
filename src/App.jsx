@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
-import { FRUITS_BASE } from './Info.js'
+import { FRUITS_BASE, FRUITS_ITEM } from './Info.js'
 //import SE from './assets/effect.mp3'
 export default function App() {
   // Refs
@@ -27,12 +27,15 @@ export default function App() {
   let [Deque, setDeque] = useState([]);
   let [holdIndex, setHold] = useState(-1); // 홀드한 과일 인덱스
   let canHold = useRef(false); // 홀드 가능 여부
+  let canBoom = useRef(true); // 폭탄 사용 가능 여부
+  let [boomCnt, setBoom] = useState(3);
   let Suika = 0;
-
-
+  // sounds
+  const effectSound = new Audio('./effect.mp3');
+  const boomSound = new Audio('./boom.mp3');
   // Start
   useEffect(() => {
-    // init score
+    // 점수 초기화, 시각 과일 초기화
     setScore(0);
     setDeque([getRandomFruit(), getRandomFruit(), getRandomFruit(), getRandomFruit()]);
     setTopScore(sessionStorage.getItem('topScore') || 0);
@@ -55,9 +58,9 @@ export default function App() {
     worldRef.current = world;
 
     // create walls
-    const LeftWall = Bodies.rectangle(5, 362, 10, 724, { isStatic: true, render: { fillStyle: '#E6B143' } });
-    const RighthWall = Bodies.rectangle(425, 362, 10, 724, { isStatic: true, render: { fillStyle: '#E6B143' } });
-    const Ground = Bodies.rectangle(215, 720, 430, 60, { isStatic: true, render: { fillStyle: '#E6B143' } });
+    const LeftWall = Bodies.rectangle(5, 362, 10, 724, { name: "leftWall", isStatic: true, render: { fillStyle: '#E6B143' } });
+    const RighthWall = Bodies.rectangle(425, 362, 10, 724, { name: "righthWall", isStatic: true, render: { fillStyle: '#E6B143' } });
+    const Ground = Bodies.rectangle(215, 720, 430, 60, { name: "ground", isStatic: true, render: { fillStyle: '#E6B143' } });
 
     // top Line
     const topLine = Bodies.rectangle(215, 150, 430, 2, { name: "topLine", isStatic: true, isSensor: true, render: { fillStyle: '#E6B143' } });
@@ -71,20 +74,20 @@ export default function App() {
     //check collision
     Matter.Events.on(engine, 'collisionStart', (event) => {
       event.pairs.forEach((collision) => {
-
-        // Fruit : if same index then delete and create hight index
+        const bodyAName = collision.bodyA.name || '';
+        const bodyBName = collision.bodyB.name || '';
+        // Fruit : 같은 인덱스면 둘을 삭제하고 다음 인덱스 과일 생성
         if (collision.bodyA.index === collision.bodyB.index) {
 
           const index = collision.bodyA.index;
 
-          // max index
+          // 마지막 과일이상으로 안 넘어가도록
           if (index === FRUITS_BASE.length - 1) {
             return;
           }
 
           World.remove(world, [collision.bodyA, collision.bodyB]);
-          const audio = new Audio('./effect.mp3');
-          audio.play();
+          effectSound.play();
           // add score
           let score = (index + 1) * 10;
           setScore((prevScore) => prevScore + score);
@@ -117,11 +120,24 @@ export default function App() {
             }, 1000);
           }
         }
+        // Boom - 충돌이 선이 아니고 둘 중하나가 폭탄이라면
+        else if (
+          // bodyA와 bodyB 모두 특정 이름이 아닌 경우
+          ((bodyAName !== "topLine" && bodyBName !== "topLine") &&
+            (bodyAName !== "ground" && bodyBName !== "ground") &&
+            (bodyAName !== "leftWall" && bodyBName !== "leftWall") &&
+            (bodyAName !== "rightWall" && bodyBName !== "rightWall")) &&
+          // bodyA 또는 bodyB의 index가 101(폭탄)인 경우
+          (collision.bodyA.index === 100 || collision.bodyB.index === 100)
+        ) {
+          // 둘다 삭제 후 효과음 재생
+          World.remove(world, [collision.bodyA, collision.bodyB]);
+          boomSound.play();
+        }
 
         // top line
         else if (!lockAction && (collision.bodyA.name === "topLine" || collision.bodyB.name === "topLine")) {
-          console.log(collision);
-          console.log(collision.bodyA.name + " / " + collision.bodyB.name);
+          lockAction = true;
           alert("game over");
         }
       });
@@ -165,13 +181,6 @@ export default function App() {
       sessionStorage.setItem('topScore', score);
     }
   }, [score]);
-
-  useEffect(() => {
-    if (isDragging) {
-      console.log("isDragging");
-    }
-  }, [isDragging]);
-
   //------------------------------------------------------------
   // functions
   // getFruit
@@ -179,7 +188,7 @@ export default function App() {
     return FRUITS_BASE[index];
   }
   const getRandomFruit = () => {
-    return getFruit(Math.floor(Math.random() * 7));
+    return getFruit(Math.floor(Math.random() * 5));
   }
   // addFruit
   const addFruit = (index) => {
@@ -208,9 +217,11 @@ export default function App() {
       currentBody = body;
       currentFruit = fruit;
       if (typeof index !== 'undefined') {
+        // 스왑시 리스트 유지
         setDeque([...nowDeque]);
       }
       else {
+        // 평시 : 다음 과일 추가
         setDeque([...nowDeque.slice(1), getRandomFruit()]);
       }
       World.add(worldRef.current, body);
@@ -219,65 +230,71 @@ export default function App() {
 
   const dropFruit = () => {
     if (lockAction) return;
+
     currentBody.isSleeping = false;
     lockAction = true;
     setTimeout(() => {
       addFruit();
       lockAction = false;
       canHold.current = true;
+      canBoom.current = true;
     }, 1000);
-  };
-
-  // 덱의 앞쪽에 요소 추가 (addFront)
-  const addFront = (value) => {
-    setDeque((prevDeque) => [value, ...prevDeque]);
-  };
-
-  // 덱의 뒤쪽에 요소 추가 (addBack)
-  const addBack = (value) => {
-    console.log("addBack");
-    setDeque((prevDeque) => {
-      let nowDeque = [...prevDeque];
-      console.log(nowDeque);
-      setDeque([value, ...nowDeque]);
-    });
-  };
-
-  // 덱의 앞쪽에서 요소 제거 (removeFront)
-  const getFront = () => {
-    console.log("getFront");
-    setDeque((prevDeque) => {
-      let nowDeque = [...prevDeque];
-      console.log(nowDeque);
-      if (nowDeque.length === 0) {
-        //addFront(getRandomFruit());
-      }
-      nowDeque = [...prevDeque];
-      let first = nowDeque[0];
-      setDeque(nowDeque.slice(1));
-      console.log("first");
-      console.log(first);
-      return first;
-    });
   };
 
   // hold
   const hold = () => {
-    setHold((current) => {
-      console.log("hold" + current);
-      setHold(currentFruit.index);
-      World.remove(worldRef.current, currentBody);
-      if (current < 0) {
-        // 처음 홀드하는 경우
-        addFruit();
-      }
-      else {
-        // 이미 과일을 홀드하고 있으면
-        addFruit(current);
-      }
-      canHold.current = false;
-    });
+    if (!lockAction) {
+      setHold((current) => {
+        setHold(currentFruit.index);
+        World.remove(worldRef.current, currentBody);
+        if (current < 0) {
+          // 처음 홀드하는 경우
+          addFruit();
+        }
+        else {
+          // 이미 과일을 홀드하고 있으면
+          addFruit(current);
+        }
+        canHold.current = false;
+      });
+    }
   };
+  // 현재 과일을 변경
+  const changeTemp = (index) => {
+    // 현재 과일 없애고 폭탄 생성, 홀드 잠금
+    setHold((current) => {
+      canHold.current = false;
+      World.remove(worldRef.current, currentBody);
+      // 모델 생성
+      let fruits = null;
+      // 과일
+      if (index < 100) {
+        fruits = FRUITS_BASE[index];
+      }
+      // 아이템
+      else if (index < 200) {
+        const reIndex = index % 100;
+        fruits = FRUITS_ITEM[reIndex];
+        if (index == 100) // 100
+        {
+          setBoom((prevScore) => prevScore - 1);
+        }
+      }
+      const body = Bodies.circle(300, 70, fruits.radius, {
+        index: fruits.index,
+        isSleeping: true,
+        render: {
+          sprite: { texture: `/${fruits.name}.png`, },
+        },
+        restitution: 0.2,
+      });
+      // 추가
+      currentBody = body;
+      World.add(worldRef.current, body);
+    });
+
+  }
+
 
   //------------------------------------------------------------
   // input event
@@ -324,6 +341,11 @@ export default function App() {
         hold();
       }
     }
+    else if (event.key === '1') {
+      if (canHold.current) {
+        changeTemp(100);
+      }
+    }
   };
 
 
@@ -352,13 +374,24 @@ export default function App() {
           {holdIndex >= 0 && (
             <img className="holdImg" src={`/${FRUITS_BASE[holdIndex].name}.png`} />
           )}
+
+        </div>
+        <div className='boomBoard'>
+          {boomCnt >= 0 &&
+            Array.from({ length: boomCnt }).map((_, index) => (
+              <img
+                key={index}
+                className="boomImg"
+                src={`/base/100_boom.png`}
+                alt={`Boom ${index + 1}`}
+              />
+            ))}
+
         </div>
         <div className='scoreBoard'>
           <p>SCORE  <br></br> {score}</p>
           <p>TOP SCORE  <br></br>{topScore}</p>
         </div>
-
-
       </div>
     </div>
   );
